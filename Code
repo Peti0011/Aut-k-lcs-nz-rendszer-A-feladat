@@ -1,0 +1,205 @@
+
+from abc import ABC, abstractmethod
+from datetime import date, datetime, timedelta
+
+
+class Auto(ABC):
+    def __init__(self, rendszam, tipus, berleti_dij):
+        self._rendszam = rendszam
+        self._tipus = tipus
+        self._berleti_dij = berleti_dij
+
+    @property
+    def rendszam(self):
+        return self._rendszam
+
+    @property
+    def berleti_dij(self):
+        return self._berleti_dij
+
+    @abstractmethod
+    def info(self):
+        pass
+
+
+class Szemelyauto(Auto):
+    def __init__(self, rendszam, tipus, berleti_dij, ferohely):
+        super().__init__(rendszam, tipus, berleti_dij)
+        self._ferohely = ferohely
+
+    def info(self):
+        return f"{self._rendszam:<10} | {self._tipus:<18} | {self._berleti_dij:>6} Ft/nap | {self._ferohely} fő"
+
+
+class Teherauto(Auto):
+    def __init__(self, rendszam, tipus, berleti_dij, teherbiras):
+        super().__init__(rendszam, tipus, berleti_dij)
+        self._teherbiras = teherbiras
+
+    def info(self):
+        return f"{self._rendszam:<10} | {self._tipus:<18} | {self._berleti_dij:>6} Ft/nap | {self._teherbiras} kg"
+
+
+class Berles:
+    def __init__(self, auto, datum):
+        self._auto = auto
+        self._datum = datum
+
+    @property
+    def auto(self):
+        return self._auto
+
+    @property
+    def datum(self):
+        return self._datum
+
+    def info(self):
+        return f"{self._auto.rendszam:<10} | {self._auto._tipus:<18} | {self._datum} | {self._auto.berleti_dij} Ft"
+
+
+class Autokolcsonzo:
+    def __init__(self, nev):
+        self._nev = nev
+        self._autok = []
+        self._berlesek = []
+
+    def auto_hozzaad(self, auto):
+        self._autok.append(auto)
+
+    def datum_keszit(self, datum_szoveg):
+        try:
+            datum = datetime.strptime(datum_szoveg, "%Y-%m-%d").date()
+            if datum < date.today():
+                raise ValueError
+            return datum
+        except ValueError:
+            raise ValueError("Hibás dátum! A helyes formátum: YYYY-MM-DD, és nem lehet múltbeli.")
+
+    def auto_keres(self, rendszam):
+        for auto in self._autok:
+            if auto.rendszam.lower() == rendszam.lower():
+                return auto
+        return None
+
+    def foglalt(self, rendszam, datum):
+        for berles in self._berlesek:
+            if berles.auto.rendszam.lower() == rendszam.lower() and berles.datum == datum:
+                return True
+        return False
+
+    def berel(self, rendszam, datum_szoveg):
+        datum = self.datum_keszit(datum_szoveg)
+        auto = self.auto_keres(rendszam)
+
+        if auto is None:
+            raise ValueError("Nincs ilyen rendszámú autó.")
+
+        if self.foglalt(rendszam, datum):
+            raise ValueError("Ez az autó ezen a napon már foglalt.")
+
+        self._berlesek.append(Berles(auto, datum))
+        return auto.berleti_dij
+
+    def lemond(self, rendszam, datum_szoveg):
+        datum = self.datum_keszit(datum_szoveg)
+
+        for berles in self._berlesek:
+            if berles.auto.rendszam.lower() == rendszam.lower() and berles.datum == datum:
+                self._berlesek.remove(berles)
+                return
+
+        raise ValueError("Nem található ilyen bérlés.")
+
+    def autok_listazasa(self):
+        print("\n--- AUTÓK LISTÁJA ---")
+        print("Rendszám   | Típus              | Díj         | Extra")
+        print("-" * 60)
+
+        for auto in self._autok:
+            print(auto.info())
+
+    def berlesek_listazasa(self):
+        print("\n--- AKTUÁLIS BÉRLÉSEK ---")
+
+        if not self._berlesek:
+            print("Nincs aktuális bérlés.")
+            return
+
+        print("Rendszám   | Típus              | Dátum       | Ár")
+        print("-" * 60)
+
+        for berles in self._berlesek:
+            print(berles.info())
+
+
+def rendszer_feltoltes():
+    kolcsonzo = Autokolcsonzo("Péter Autókölcsönző")
+
+    a1 = Szemelyauto("ABC-123", "Toyota Corolla", 12000, 5)
+    a2 = Szemelyauto("DEF-456", "Volkswagen Golf", 15000, 5)
+    a3 = Teherauto("GHI-789", "Ford Transit", 22000, 1200)
+
+    kolcsonzo.auto_hozzaad(a1)
+    kolcsonzo.auto_hozzaad(a2)
+    kolcsonzo.auto_hozzaad(a3)
+
+    kolcsonzo._berlesek.append(Berles(a1, date.today() + timedelta(days=1)))
+    kolcsonzo._berlesek.append(Berles(a2, date.today() + timedelta(days=2)))
+    kolcsonzo._berlesek.append(Berles(a3, date.today() + timedelta(days=3)))
+    kolcsonzo._berlesek.append(Berles(a1, date.today() + timedelta(days=4)))
+
+    return kolcsonzo
+
+
+def menu():
+    kolcsonzo = rendszer_feltoltes()
+
+    while True:
+        print("\n" + "=" * 35)
+        print("      AUTÓKÖLCSÖNZŐ RENDSZER")
+        print("=" * 35)
+        print("1. Autók listázása")
+        print("2. Autó bérlése")
+        print("3. Bérlés lemondása")
+        print("4. Bérlések listázása")
+        print("5. Kilépés")
+        print("=" * 35)
+
+        valasztas = input("Válassz menüpontot: ")
+
+        try:
+            if valasztas == "1":
+                kolcsonzo.autok_listazasa()
+
+            elif valasztas == "2":
+                print("\n--- AUTÓ BÉRLÉSE ---")
+                rendszam = input("Rendszám: ")
+                datum = input("Dátum (YYYY-MM-DD): ")
+
+                ar = kolcsonzo.berel(rendszam, datum)
+                print(f"\nSikeres bérlés! Fizetendő ár: {ar} Ft")
+
+            elif valasztas == "3":
+                print("\n--- BÉRLÉS LEMONDÁSA ---")
+                rendszam = input("Rendszám: ")
+                datum = input("Dátum (YYYY-MM-DD): ")
+
+                kolcsonzo.lemond(rendszam, datum)
+                print("\nA bérlés sikeresen lemondva.")
+
+            elif valasztas == "4":
+                kolcsonzo.berlesek_listazasa()
+
+            elif valasztas == "5":
+                print("\nKilépés a programból...")
+                break
+
+            else:
+                print("\nÉrvénytelen menüpont.")
+
+        except ValueError as hiba:
+            print(f"\nHiba: {hiba}")
+
+
+if __name__ == "__main__":
+    menu()
